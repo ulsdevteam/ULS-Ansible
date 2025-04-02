@@ -1,0 +1,191 @@
+---
+- name: Kerberos Authentication Setup for RHEL 8
+  remote_user: ulsprovision
+  hosts: all
+  become: yes
+  tasks:
+
+  - name: ensure localhost is defined in /etc/hosts ipv4
+    lineinfile:
+      path: /etc/hosts
+      line: '127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4'
+      
+  - name: ensure localhost is defined in /etc/hosts ipv6
+    lineinfile:
+      path: /etc/hosts
+      line: '::1         localhost localhost.localdomain localhost6 localhost6.localdomain6'
+
+# Install Packages.
+
+  - name: Install Kerberos Workstation
+    yum:
+      name: krb5-workstation
+      state: latest
+
+  - name: Install sssd
+    yum:
+      name: "{{ packages }}"
+      state: latest
+    vars:
+      packages:
+      - sssd
+      - sssd-client
+      - sssd-common
+      - sssd-krb5
+      - sssd-krb5-common
+      - sssd-tools
+
+# Update Chrony.
+
+  - name: Update /etc/chrony.conf 
+    lineinfile:
+      path: /etc/chrony.conf
+      insertbefore: 'pool 2.rhel.pool.ntp.org iburst'
+      line: 'pool time.pitt.edu iburst'
+      backup: yes
+
+  - name: Restart Chrony
+    service: 
+      name: chronyd
+      state: restarted
+
+# Configure Kerberos
+
+  - name: Save a copy of the original /etc/krb5.conf file as /etc/krb5.conf.YYYYMMDD
+    copy:
+      src: /etc/krb5.conf
+      remote_src: yes
+      dest: /etc/krb5.conf.{{ansible_date_time.year+ansible_date_time.month+ansible_date_time.day}}
+
+  - name: Overwrite krb5.conf from local copy
+    copy:
+      src: resources/kerberos/krb5.conf
+      dest: /etc/krb5.conf  
+
+
+# The following was for RHEL7 - but leaving here for informational purposes.
+#
+#  - name: Save a copy of the original /etc/pam.d/password-auth-ac as /etc/pam.d/password-auth-ac.YYYYMMDD
+#    copy:
+#      src: /etc/pam.d/password-auth-ac
+#      remote_src: yes
+#      dest: /etc/pam.d/password-auth-ac.{{ansible_date_time.year+ansible_date_time.month+ansible_date_time.day}}
+      
+#  - name: Edit the /etc/pam.d/password-auth-ac file and add the following line after the 'auth sufficient pam_unix.so nullok try_first_pass' line
+#    lineinfile:
+#      path: /etc/pam.d/password-auth-ac
+#      insertafter: 'auth        sufficient    pam_unix\.so nullok try_first_pass'
+#      line: 'auth        sufficient    pam_krb5.so minimum_uid=200'
+
+#  - name: Edit the /etc/pam.d/password-auth-ac file and add the following line after the 'session required pam_unix.so' line
+#    lineinfile:
+#      path: /etc/pam.d/password-auth-ac
+#      insertafter: 'session     required      pam_unix\.so'
+#      line: 'session     optional      pam_krb5.so minimum_uid=200'
+
+#  - name: Save a copy of the original /etc/pam.d/system-auth-ac as /etc/pam.d/system-auth-ac.YYYYMMDD
+#    copy:
+#      src: /etc/pam.d/system-auth-ac
+#      remote_src: yes
+#      dest: /etc/pam.d/system-auth-ac.{{ansible_date_time.year+ansible_date_time.month+ansible_date_time.day}}
+
+#  - name: Edit the /etc/pam.d/system-auth-ac file and add the following line after the 'auth sufficient pam_unix.so nullok try_first_pass' line
+#    lineinfile:
+#      path: /etc/pam.d/system-auth-ac
+#      insertafter: 'auth        sufficient    pam_unix\.so nullok try_first_pass'
+#      line: 'auth        sufficient    pam_krb5.so minimum_uid=200'
+
+#  - name: Edit the /etc/pam.d/system-auth-ac file and add the following line after the 'session require pam_unix.so' line
+#    lineinfile:
+#      path: /etc/pam.d/system-auth-ac
+#      insertafter: 'session     required      pam_unix\.so'
+#      line: 'session     optional      pam_krb5.so minimum_uid=200'
+#
+
+# RHEL 8 requires the use of sssd to handle the kerberos communication
+# Setting up the /etc/sssd/sssd.conf file as needed.
+
+  - name: Create /etc/sssd/sssd.conf
+    copy:
+      src: resources/kerberos/rhel8-sssd.conf
+      dest: /etc/sssd/sssd.conf
+      backup: yes
+      owner: root
+      group: root
+      mode: '0600'
+
+# Adjusting the system-auth and password-auth pam files to include the sssd entries.
+
+  - name: Update /etc/pam.d/system-auth
+    copy:
+      src: resources/kerberos/rhel8-system-auth
+      dest: /etc/pam.d/system-auth
+      backup: yes
+      owner: root
+      group: root
+      mode: '0644'
+
+  - name: Update /etc/pam.d/password-auth
+    copy:
+      src: resources/kerberos/rhel8-password-auth
+      dest: /etc/pam.d/password-auth
+      backup: yes
+      owner: root
+      group: root
+      mode: '0644'
+
+# Restart sssd service to pickup the changes.
+
+  - name: Restart sssd
+    service:
+      name: sssd
+      state: restarted
+
+# Add the required SecurityScanSvc account.
+
+  - name: add the group SecurityScanSvc
+    group:
+      name: SecurityScanSvc
+      gid: 666
+      
+  - name: add user SecurityScanSvc
+    user: 
+      name: SecurityScanSvc
+      uid: 666
+      group: SecurityScanSvc
+  
+  - name: Create the file /etc/sudoers.d/SecurityScanSvc
+    copy:
+      dest: '/etc/sudoers.d/SecurityScanSvc'
+      content:
+        SecurityScanSvc ALL=(ALL) ALL
+
+# Add the ulssysdev group and users.
+
+  - name: Create the ulssysdev group
+    group:
+      name: ulssysdev
+      
+  - name: Create the file /etc/sudoers.d/ulssysdev
+    copy:
+      dest: '/etc/sudoers.d/ulssysdev'
+      content:
+        "%ulssysdev ALL=(ALL) ALL"
+
+  - name: Creating sysdev users
+    user: 
+      name: "{{ item.name }}"
+      groups: ulssysdev
+      append: yes
+      comment: "{{ item.comment }}"
+    loop:
+      - { name: rlh52, comment: "Richard Hoover" }
+      - { name: ctgraham, comment: "Clinton Graham" }
+      - { name: bdgregg, comment: "Brian Gregg" }
+      - { name: asw76, comment: "Alex Wreschnig" }
+      - { name: mem375, comment: "Mark Michalski" }
+      - { name: chl310, comment: "Chrysanthemum Lovelace" }
+      - { name: emv38, comment: "Emily Vaiz " }
+      - { name: ruz152, comment: "Ruiling Zhang" }
+
+# Done
