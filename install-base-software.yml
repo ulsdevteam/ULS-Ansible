@@ -18,12 +18,6 @@
       name: postfix
       state: latest
 
-#candidate for addition to the base vmware template
-  - name: add students group
-    group:
-      name: ulssysstu
-      state: present
-
 # add rsync,git 
   - name: install rsync
     yum:
