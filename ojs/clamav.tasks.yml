@@ -1,0 +1,55 @@
+  - name: install clamav
+    yum:
+      name:
+        - clamav
+        - clamav-update
+        - clamd
+      state: latest
+
+  - name: Fix /var/lib/clamav ownership
+    file:
+      path: /var/lib/clamav
+      owner: clamupdate
+      group: clamupdate
+      mode: '0755'
+      recurse: yes
+    become: yes
+
+  - name: refresh clamav database
+    command: "/usr/bin/freshclam --quiet"
+
+  - name: enable freshclam as a cron
+    cron:
+      name: freshclam daily
+      user: root
+      job: "/usr/local/bin/cronic /usr/bin/freshclam --quiet"
+      hour: 19
+      minute: "{{ 59 | random }}"
+      state: present
+
+  - name: enable clamd socket
+    lineinfile:
+      path: /etc/clamd.d/scan.conf
+      regexp: '^#LocalSocket (.*)$'
+      line: 'LocalSocket \1'
+      backrefs: yes
+
+  - name: enable clamd service
+    service:
+      name: clamd@scan
+      enabled: yes
+      state: started
+
+  - name: selinux allow daemons to talk to each other's sockets (httpd -> clamd@scan)
+    seboolean:
+      name: daemons_enable_cluster_mode
+      state: yes
+      persistent: yes
+
+#  - name: selinux allow av to scan the whole system
+#    seboolean:
+#      name: antivirus_can_scan_system
+#      state: yes
+#      persistent: yes
+
+ 

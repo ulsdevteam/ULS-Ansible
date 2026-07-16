@@ -1,0 +1,131 @@
+- name: PHP-FPM Build with PHP 8.2 (Remi SCL, RHEL 10)
+  remote_user: ulsprovision
+  hosts: phpfpm73clients
+  become: yes
+
+  vars:
+    php_scl: php82           # Remi's SCL-style prefix for PHP 8.2 on EL10
+
+  tasks:
+# RHEL 10 has no RHSCL / rh-php* channel and no PHP 8.2 in its own AppStream
+# (AppStream on RHEL 10 only ships PHP 8.3 directly). PHP 8.2 is provided as
+# an SCL-style package set (php82-php-*) via the Remi repository.
+
+  - name: enable CodeReady Builder repo (required by EPEL/Remi on RHEL)
+    # This repo is synced via Satellite (University_of_Pittsburgh org). If this
+    # task fails with "does not match a valid repository ID", the repository
+    # set needs to be enabled server-side in Satellite (Content > Products >
+    # Repositories) or added to this host's activation key/content view first
+    # — that's an admin step, not something fixable from this playbook.
+    command: "subscription-manager repos --enable codeready-builder-for-rhel-10-{{ ansible_architecture }}-rpms"
+    changed_when: false
+
+  - name: point EPEL-10 at Satellite mirror
+    yum_repository:
+      name: epel-10
+      description: "EPEL 10 - via Satellite"
+      baseurl: https://rhnsat6.cssd.pitt.edu/pulp/content/University_of_Pittsburgh/Library/custom/epel-10/epel-10/
+      enabled: yes
+      gpgcheck: no   # set to yes + gpgkey path if Satellite has the EPEL key synced/imported locally
+
+  - name: install Remi release package
+    yum:
+      name: https://rpms.remirepo.net/enterprise/remi-release-10.rpm
+      state: present
+      disable_gpg_check: yes
+
+  - name: install php 8.2 and extensions (Remi SCL)
+    yum:
+      name:
+        - "{{ php_scl }}"
+        - "{{ php_scl }}-php-fpm"
+        - "{{ php_scl }}-php-cli"
+        - "{{ php_scl }}-php-common"
+        - "{{ php_scl }}-php-gd"
+        - "{{ php_scl }}-php-mbstring"
+        - "{{ php_scl }}-php-pdo"
+        - "{{ php_scl }}-php-xml"
+        - "{{ php_scl }}-php-opcache"
+        - "{{ php_scl }}-php-intl"
+        - "{{ php_scl }}-php-pecl-apcu"
+        - "{{ php_scl }}-php-mysqlnd"
+        - "{{ php_scl }}-php-ldap"
+        - "{{ php_scl }}-php-zip"
+        # php-json is built into PHP core as of PHP 8.0+, no separate package needed
+      state: present
+
+  - name: make FPM listen on TCP 127.0.0.1:9000 (matches httpd proxy config below)
+    lineinfile:
+      path: "/etc/opt/remi/{{ php_scl }}/php-fpm.d/www.conf"
+      regexp: '^listen\s*='
+      line: 'listen = 127.0.0.1:9000'
+
+  - name: enable {{ php_scl }}-php-fpm
+    service:
+      name: "{{ php_scl }}-php-fpm"
+      enabled: yes
+
+  - name: start {{ php_scl }}-php-fpm
+    service:
+      name: "{{ php_scl }}-php-fpm"
+      state: started
+
+#all builds with php
+  - name: install mariadb
+    yum:
+      name:
+        - mariadb
+      state: present
+
+  - name: set up PHP max execution time
+    lineinfile:
+       create: yes
+       path: "/etc/opt/remi/{{ php_scl }}/php.d/zzz_local.ini"
+       state: present
+       regexp: 'max_execution_time.*'
+       line: 'max_execution_time = 300'
+
+  - name: set up PHP max post size
+    lineinfile:
+       path: "/etc/opt/remi/{{ php_scl }}/php.d/zzz_local.ini"
+       state: present
+       regexp: 'post_max_size.*'
+       line: 'post_max_size = 256M'
+
+  - name: set up PHP max upload size
+    lineinfile:
+       path: "/etc/opt/remi/{{ php_scl }}/php.d/zzz_local.ini"
+       state: present
+       regexp: 'upload_max_filesize.*'
+       line: 'upload_max_filesize = 256M'
+
+  - name: set up PHP timezone
+    lineinfile:
+       path: "/etc/opt/remi/{{ php_scl }}/php.d/zzz_local.ini"
+       state: present
+       regexp: 'date.timezone.*'
+       line: 'date.timezone = America/New_York'
+
+  - name: suppress production PHP errors
+    lineinfile:
+       path: "/etc/opt/remi/{{ php_scl }}/php.d/zzz_local.ini"
+       state: present
+       regexp: 'error_reporting.*'
+       line: 'error_reporting=E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_NOTICE & ~E_WARNING'
+
+  - name: restart {{ php_scl }}-php-fpm to pick up ini changes
+    service:
+      name: "{{ php_scl }}-php-fpm"
+      state: restarted
+
+  - name: php specific httpd configurations
+    blockinfile:
+      path: /etc/httpd/conf.d/php.conf
+      create: yes
+      block: |
+        SetEnvIfNoCase ^Authorization$ "(.+)" HTTP_AUTHORIZATION=$1
+
+        # Use PHP 8.2 by default
+        <FilesMatch \.php$>
+          SetHandler "proxy:fcgi://127.0.0.1:9000"
+        </FilesMatch>

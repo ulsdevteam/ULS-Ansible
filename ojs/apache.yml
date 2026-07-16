@@ -1,0 +1,84 @@
+
+- name: oel 7.5 apache build
+  remote_user: ulsprovision
+  hosts: webservers
+  become: yes
+
+  tasks:
+# every time we install/update httpd, reset file system permissions to trust users other than root to read apache logs
+#
+#
+  - name: Install httpd
+    ansible.builtin.dnf:
+      name: httpd
+      state: present
+
+  - name: install yum-utils
+    yum:
+      name: yum-utils
+      state: latest
+
+  - name: Install dnf plugins core (RHEL 8+)
+    yum:
+      name: dnf-plugins-core
+      state: latest
+
+  - name: Trust users other than root to read apache logs
+    copy:
+      src: /home/ansiblecontrol/playbooks-dev/resources/httpd.action
+      dest: "/etc/yum/post-actions/"
+
+
+  - name: user can execute httpd.action
+    file:
+      path: /etc/yum/post-actions/httpd.action
+      mode: "u+x"
+
+  - name: install mod_ssl
+    yum:
+      name: mod_ssl
+      state: latest
+
+  - name: install certbot
+    yum:
+      name:
+        - certbot
+        - python3-certbot-apache
+      state: latest
+
+  - name: certbot auto renewal
+    cron:
+      name: certbot renewals
+      user: root
+      job: 'PATH=$PATH:/usr/sbin/;/usr/local/bin/cronic /usr/bin/certbot --quiet renew --deploy-hook "/usr/sbin/apachectl graceful"'
+      hour: 9
+      minute: "{{ 29 | random }}"
+      state: present
+
+  - import_tasks: clamav.tasks.yml
+
+  - name: selinux allow apache to execute external programs (clamscan)
+    seboolean:
+      name: httpd_execmem
+      state: yes
+      persistent: yes
+
+  - name: apache is a member of virusgroup
+    user:
+      name: apache
+      groups: virusgroup
+
+  - name: ensure httpd is running
+    service:
+      name: httpd
+      enabled: yes
+      state: started
+
+  - import_tasks: open-web-ports.tasks.yml
+
+  - name: preserve 10 years of logs
+    lineinfile:
+      path: /etc/logrotate.d/httpd
+      state: present
+      insertafter: '^/var/log/httpd/\*log \{'
+      line: '    rotate 520'

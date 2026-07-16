@@ -1,0 +1,44 @@
+<VirtualHost *:80>
+	ServerName SERVERNAME
+	ServerAlias dev.SERVERNAME
+	#ServerAlias SERVERALIAS
+
+	DocumentRoot /var/www/vhosts/SERVERNAME/html
+
+	CustomLog logs/SERVERNAME-access.log combined
+	ErrorLog logs/SERVERNAME-error.log 
+	Include conf.d/vhosts/apache-global-options.include
+	<Directory "/var/www/vhosts/SERVERNAME/html/public">
+		RemoveHandler .php .phtml .php3 .php5
+		RemoveType .php .phtml .php3 .php5
+		<IfModule mod_php.c>
+		php_flag engine off
+		</IfModule>
+	</Directory>
+</VirtualHost>
+
+<VirtualHost *:443>
+	ServerName SERVERNAME
+	ServerAlias dev.SERVERNAME
+	#ServerAlias SERVERALIAS
+
+	DocumentRoot /var/www/vhosts/SERVERNAME/html
+
+	CustomLog logs/SERVERNAME-ssl.access.log combined
+	ErrorLog logs/SERVERNAME-ssl.error.log 
+
+	Include conf.d/vhosts/ssl-global-options.include
+
+	SSLCertificateFile /etc/pki/tls/certs/SERVERNAME/cert.pem
+	SSLCertificateKeyFile /etc/pki/tls/private/SERVERNAME/privkey.pem
+	SSLCertificateChainFile /etc/pki/tls/certs/SERVERNAME/chain.pem
+
+	Include conf.d/vhosts/apache-global-options.include
+	<Directory "/var/www/vhosts/SERVERNAME/html/public">
+		RemoveHandler .php .phtml .php3 .php5
+		RemoveType .php .phtml .php3 .php5
+		<IfModule mod_php.c>
+		php_flag engine off
+		</IfModule>
+	</Directory>
+</VirtualHost>

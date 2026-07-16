@@ -1,0 +1,46 @@
+- name: oel 7.5 text_processing build
+  remote_user: ulsprovision
+  hosts: textprocessors
+  become: yes
+
+  tasks:
+
+  - name: install poppler-utils for pdftotext
+    yum:
+      name:
+        - poppler-utils
+      state: latest
+
+  - name: install catdoc
+    yum:
+      name:
+        - catdoc
+      state: latest
+
+  - name: install ghostscript for ps2ascii
+    yum:
+      name:
+        - ghostscript
+      state: latest
+
+  - name: Add catdox.sh
+    copy:
+      src: resources/textprocessing/catdox.sh
+      dest: /usr/local/bin/catdox.sh
+      mode: u=rwx,g=rx,o=rx
+      owner: root
+      group: root
+
+  - name: Add docx2txt.pl
+    copy:
+      src: resources/textprocessing/docx2txt.pl
+      dest: /usr/local/bin/docx2txt.pl
+      mode: u=rwx,g=rx,o=rx
+      owner: root
+      group: root
+
+  - name: install html2text
+    yum:
+      name:
+        - python3-html2text
+      state: latest
