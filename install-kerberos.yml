@@ -1,5 +1,5 @@
 ---
-- name: Kerberos Authentication Setup for RHEL 8
+- name: Kerberos Authentication Setup for RHEL 8,9,10
   remote_user: ulsprovision
   hosts: all
   become: yes
@@ -17,23 +17,31 @@
 
 # Install Packages.
 
-  - name: Install Kerberos Workstation
-    yum:
-      name: krb5-workstation
-      state: latest
+#  - name: Install Kerberos Workstation
+#    yum:
+#      name: krb5-workstation
+#      state: latest
 
+#  - name: Install sssd
+#    yum:
+#      name: "{{ packages }}"
+#      state: latest
+#    vars:
+#      packages:
+#      - sssd
+#      - sssd-client
+#      - sssd-common
+#      - sssd-krb5
+#      - sssd-krb5-common
+#      - sssd-tools
+  - name: Install Kerberos Workstation
+    ansible.builtin.command: dnf install -y krb5-workstation
+    changed_when: false
   - name: Install sssd
-    yum:
-      name: "{{ packages }}"
-      state: latest
-    vars:
-      packages:
-      - sssd
-      - sssd-client
-      - sssd-common
-      - sssd-krb5
-      - sssd-krb5-common
-      - sssd-tools
+    ansible.builtin.command: dnf install -y sssd sssd-client sssd-common sssd-krb5 sssd-krb5-common sssd-tools
+    changed_when: false
+
+
 
 # Update Chrony.
 
@@ -41,7 +49,8 @@
     lineinfile:
       path: /etc/chrony.conf
       insertbefore: 'pool 2.rhel.pool.ntp.org iburst'
-      line: 'pool time.pitt.edu iburst'
+      #line: 'pool time.pitt.edu iburst'
+      line: 'pool us.pool.ntp.org iburst'
       backup: yes
 
   - name: Restart Chrony
@@ -102,7 +111,7 @@
 #      line: 'session     optional      pam_krb5.so minimum_uid=200'
 #
 
-# RHEL 8 requires the use of sssd to handle the kerberos communication
+# RHEL 8 and above requires the use of sssd to handle the kerberos communication
 # Setting up the /etc/sssd/sssd.conf file as needed.
 
   - name: Create /etc/sssd/sssd.conf
@@ -113,6 +122,27 @@
       owner: root
       group: root
       mode: '0600'
+    when: ansible_distribution == 'RedHat' and ansible_distribution_major_version == '8'
+
+  - name: Create /etc/sssd/sssd.conf
+    copy:
+      src: resources/kerberos/rhel8-sssd.conf
+      dest: /etc/sssd/sssd.conf
+      backup: yes
+      owner: root
+      group: root
+      mode: '0600'
+    when: ansible_distribution == 'RedHat' and ansible_distribution_major_version == '9'
+
+  - name: Create /etc/sssd/sssd.conf
+    copy:
+      src: resources/kerberos/rhel10-sssd.conf
+      dest: /etc/sssd/sssd.conf
+      backup: yes
+      owner: root
+      group: root
+      mode: '0600'
+    when: ansible_distribution == 'RedHat' and ansible_distribution_major_version == '10'
 
 # Adjusting the system-auth and password-auth pam files to include the sssd entries.
 
@@ -185,7 +215,7 @@
       - { name: asw76, comment: "Alex Wreschnig" }
       - { name: mem375, comment: "Mark Michalski" }
       - { name: chl310, comment: "Chrysanthemum Lovelace" }
-      - { name: emv38, comment: "Emily Vaiz " }
       - { name: ruz152, comment: "Ruiling Zhang" }
+      - { name: ojm15, comment: "Ojas Mishra" }
 
 # Done

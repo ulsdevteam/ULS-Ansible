@@ -1,0 +1,17 @@
+---
+- import_playbook: set-hostname.yml
+  tags:
+        - build
+- import_playbook: register-satellite.yml
+  tags:
+        - build
+- import_playbook: install-base-software.yml
+  tags:
+        - build
+- import_playbook: install-kerberos.yml
+  tags:
+        - build
+- import_playbook: install-postfix.yml
+  tags:
+        - build
+

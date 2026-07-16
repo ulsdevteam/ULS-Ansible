@@ -1,0 +1,12 @@
+---
+- name: Install Postfix
+  remote_user: ulsprovision
+  hosts: all
+  become: yes
+  tasks:
+
+  - name: Install Postfix role
+    ansible.builtin.import_role:
+      name: postfix
+    tags: 'build'
+    when: "'build' in ansible_run_tags"

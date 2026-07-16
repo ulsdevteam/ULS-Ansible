@@ -1,0 +1,67 @@
+#
+# Install Satellite
+#
+- name: Install client into Satellite.
+  remote_user: ulsprovision
+  hosts: all
+  become: yes
+
+ # vars:
+ #   ansible_python_interpreter: /usr/bin/python3
+
+#  vars_prompt:
+#    - name: hostname
+#      prompt: "Enter the fully qualified hostname of the host you are provisioning"
+#      private: no
+#      confirm: yes
+
+  tasks:
+  - name: Copy bootstrap.py to remote /tmp folder.
+    copy:
+      src: resources/bootstrap/bootstrap.py
+      dest: /tmp/bootstrap.py
+      owner: root
+      group: root
+      mode: '0755'
+
+  - name: Join RHEL8 client to Satellite using /tmp/bootstrap.py.
+    command: /usr/libexec/platform-python /tmp/bootstrap.py --skip foreman -s dept-capsule-01.cssd.pitt.edu -o "University_of_Pittsburgh" -L ULS -a ULS-RHEL8 --force
+    when: ansible_distribution == 'RedHat' and ansible_distribution_major_version == '8'
+
+  - name: Join RHEL9 client to Satellite using /tmp/bootstrap.py.
+    command: /usr/libexec/platform-python /tmp/bootstrap.py --skip foreman -s dept-capsule-01.cssd.pitt.edu -o "University_of_Pittsburgh" -L ULS -a ULS-RHEL9 --force
+    when: ansible_distribution == 'RedHat' and ansible_distribution_major_version == '9'
+
+  - name: Join RHEL10 client to Satellite using /tmp/bootstrap.py.
+    command: /usr/libexec/platform-python /tmp/bootstrap.py --skip foreman -s dept-capsule-01.cssd.pitt.edu -o "University_of_Pittsburgh" -L ULS -a ULS-RHEL10 --force
+    when: ansible_distribution == 'RedHat' and ansible_distribution_major_version == '10'
+
+
+  - name: Confirm update
+    pause:
+      prompt: "\nWould you like to yum update the host now? (yes/no)"
+    register: confirm_update
+
+  - name: Yum update all packages.
+    yum:
+      name: '*'
+      state: latest
+    when: (confirm_update.user_input == "y" or confirm_update.user_input == "yes")
+
+  - name: Confirm to reboot the host
+    pause: 
+      prompt: "\nWould you like to reboot the host now? (yes/no)"
+    register: confirm_reboot
+
+  - name: Reboot the host.
+    reboot:
+    when: (confirm_reboot.user_input == "y" or confirm_reboot.user_input == "yes")
+
+  - name: Wait for system to become reachable.
+    wait_for_connection:
+      timeout: 900
+    when: (confirm_reboot.user_input == "y" or confirm_reboot.user_input == "yes")
+
+  - name: Gather facts
+    setup:
+

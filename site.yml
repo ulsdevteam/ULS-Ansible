@@ -1,14 +1,17 @@
 ---
-- import_playbook: set-hostname.yml
-  tags:
-        - build
-- import_playbook: register-satellite.yml
-  tags:
-        - build
-- import_playbook: install-base-software.yml
-  tags:
-        - build
-- import_playbook: install-kerberos.yml
+# Import Global tasks
+#  tasks:
+#    - import_tasks: tasks/all.yml
+
+# Used to add minimal changes/requirements to an newly existing VM.
+- import_playbook: build.yml
   tags:
         - build
 
+# Used to add additional changes/requirements to a VM that is in a public VLAN.
+#- import_playbook: post-build.yml
+#  tags: post-build
+
+# Used to remove software components of a VM.
+#- import_playbook: remove.yml
+#  tags: remove
