@@ -1,18 +1,18 @@
 #- import_playbook: apache.yml
 #  tags:
 #        - ojs
-#- import_playbook: mysql.yml
-#  tags:
-#        - ojs
+- import_playbook: mysqltest.yml
+  tags:
+        - ojs
 #- import_playbook: text_processing.yml
 #  tags:
 #        - ojs
 #- import_playbook: php-fpm-82.yml
 #  tags:
 #        - ojs
-- import_playbook: ojs.yml
-  tags:
-        - ojs
+#- import_playbook: ojs.yml
+#  tags:
+#        - ojs
 #- import_playbook: ojs3.yml
 #  tags:
 #        - ojs

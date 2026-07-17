@@ -36,22 +36,11 @@
 # ulsprovision will log in with blank default password
 
   - name: set password for root@localhost localhost
-    block:
-      - name: set password for root@localhost localhost (initial, blank password)
-        mysql_user:
-          user: root
-          password: "{{ mysqlvars.password }}"
-          host: localhost
-          login_unix_socket: /var/lib/mysql/mysql.sock
-    rescue:
-      - name: set password for root@localhost localhost (password already set)
-        mysql_user:
-          user: root
-          password: "{{ mysqlvars.password }}"
-          host: localhost
-          login_user: root
-          login_password: "{{ mysqlvars.password }}"
-          login_unix_socket: /var/lib/mysql/mysql.sock
+    mysql_user:
+      user: root
+      password: "{{ mysqlvars.password }}"
+      host: localhost
+      login_unix_socket: /var/lib/mysql/mysql.sock
 
 # password is now set
 # we'll upload a .my.cnf with the new credentials for future commands
